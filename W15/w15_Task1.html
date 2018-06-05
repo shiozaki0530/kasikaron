@@ -1,0 +1,117 @@
+<html>
+    <head>
+	<title>W15: Task</title>
+    </head>
+    <body style="margin:0">
+        <div id="display" style="width: 80%; float: left;"></div>
+        <div id="controller" style="width:20%; float:left;">
+	  <label id="label" style="font-family:Arial;"></label>
+	  isovalueを設定してください。直接ボックス内から指定することもできます。(0から255まで)
+	  <input type="range" min="0" max="1" step="0.01" value="0.5" id="isovalue" 
+	                                     oninput="display_isovalue(this.value)" onchange="display_isovalue(this.value)"/>
+	  isovalue：<input type="number" value="128" id="numberOfIsovalue"
+	                                      oninput="change_BoxValue(this.value)" onchange="change_BoxValue(this.value)"/>
+	  <button id="change-isovalue-button" onclick="setvalue()" style="font-family=Arial;"> Apply</button>
+        </div>
+	<script src="three.min.js"></script>
+	<script src="Lut.js"></script>
+	<script src="TrackballControls.js"></script>
+	<script src="KVS.min.js"></script>
+	<script src="KVS2THREE.min.js"></script>
+	<script src="KVSLobsterData.js"></script>
+	<script src="Bounds.js"></script>
+	<script src="w15_Isosurfaces.js"></script>
+	<script src="w15_main_Task.js"></script>
+	<script type="x-shader/x-vertex" id="Phong.vert">
+	  varying vec3 point_color;
+	  varying vec4 point_position;
+	  varying vec3 normal_vector;
+	  uniform vec3 light_position;
+	  uniform vec3 C_color;
+	  
+	  vec3 PhongReflection( vec3 C, vec3 L, vec3 N ,vec3 V) {
+	  float ka = 0.3;
+	  float kd = 0.5;
+	  float ks = 0.8;
+	  float n = 50.0;
+	  vec3 H = normalize(V + L);
+	  float dd = max( dot( N, L ), 0.0 );
+	  float ds = pow( max( dot( H, N ), 0.0 ), n );
+	  if ( dd <= 0.0 ) { ds = 0.0; }
+		     float Ia = ka;
+		     float Id = kd * dd;
+		     float Is = ks * ds;
+		     return C * ( Ia + Id + Is );
+		     }
+		     
+		     void main()
+		     {
+		     point_position = modelViewMatrix * vec4( position, 1.0 );
+		     normal_vector = normalMatrix * normal;
+		     vec3 C = C_color;
+		     vec3 L = normalize( light_position - point_position.xyz );
+		     vec3 N = normalize( normal_vector );
+		     vec3 V = normalize( cameraPosition - point_position.xyz);
+		     point_color = PhongReflection( C, L, N ,V);
+		     gl_Position = projectionMatrix * point_position;
+		     }
+        </script>
+
+	<script type="x-shader/x-fragment" id="Phong.frag">
+	  varying vec3 point_color;
+	  
+	  void main()
+	  {
+	  gl_FragColor = vec4( point_color, 1.0 );
+	  }
+	</script>
+	<script>
+	  var shader_vert = 'Phong.vert';
+	  var shader_frag = 'Phong.frag';
+	  var change_isovalue = new change_isovalue(shader_vert, shader_frag);
+	  var isovalue_slider = document.getElementById("isovalue");
+
+
+	  //イベントキャプチャリングで処理するならtrue、イベントバブリングで処理するならfalse
+	  
+	  main(change_isovalue, shader_vert, shader_frag);
+	  
+	  //slider値をエビに反映
+	  function setvalue(){
+	    var iso_box = document.getElementById("numberOfIsovalue");
+	    
+	    if(iso_box.value >= 0 && iso_box.value <= 255){
+	      change_isovalue.set_surfaces(isovalue_slider.value);
+	    }else{
+	      alert("out of index!");
+	    }
+	  }
+	  
+	  //isovalueの値を表示するメソッド
+	  //oninputとonchangeがあるけどどちらか動かない可能性があるので両方指定するらしい
+	  function display_isovalue(value){
+	    var isovalue = parseInt(value*255);
+	    var iso_box = document.getElementById("numberOfIsovalue");
+	    iso_box.value = isovalue;
+	  }
+	  
+	  function change_BoxValue(value){
+	    if(value >= 0 && value <= 255){
+	      slider_value = value / 255;
+	      isovalue_slider.value = slider_value;
+	    }
+	  }
+	  
+	  //スリープ関数・秒で指定
+	  /*function sleep(time){
+	    const d1 = new Date();
+	    while (true) {
+	       const d2 = new Date();
+	       if (d2 - d1 > time*1000) {
+	         break;
+	       }
+	    }
+	  }*/
+	</script>
+	</body>
+</html>

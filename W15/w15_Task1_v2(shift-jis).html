@@ -1,0 +1,425 @@
+<html>
+    <head>
+    <title>W15: Task</title>
+    </head>
+    <body style="margin:0">
+        <div id="display" style="width: 60%; float: left;"></div>
+        <div id="display2" style="width: 10%; float: left;"></div>
+        <div id="controller" style="width:30%; float:left;">
+      <label id="label" style="font-family:Arial;"></label>
+      isovalueを設定してください。(0から255まで)
+      <input type="range" min="0" max="1" step="0.01" value="0.5" id="isovalue" 
+                                         oninput="display_isovalue(this.value)" onchange="display_isovalue(this.value)"/><br>
+      isovalue: <input type="number" value="128" id="numberOfIsovalue"
+                                          oninput="change_BoxValue(this.value)" onchange="change_BoxValue(this.value)"/>
+      <button id="change-isovalue-button" onclick="setvalue()" style="font-family=Arial;"> Apply</button>
+      <br>
+     
+      <input type="radio" name="Q1" onclick="change_shader()" id="Phong"> フォン鏡面反射<br>
+     
+      
+      <br>
+      <br>
+      カラーマップを選んでください.<br>
+      <input type="radio" name="Q2" onclick="change_ColorMap()" id="red" checked="checked"> Red <br>
+      <input type="radio" name="Q2" onclick="change_ColorMap()" id="green"> Green <br>
+      <input type="radio" name="Q2" onclick="change_ColorMap()" id="blue"> Blue <br>
+      <input type="radio" name="Q2" onclick="change_ColorMap()" id="rainbow"> 調整する (0から255まで)<br>
+      <input type="range" min="0" max="1" step="0.01" value="0.5" id="redvalue" disabled = "true"
+                                         oninput="display_RGBvalue()" onchange="display_RGBvalue()"/><br>
+      red： <input type="number" value="128" id="numberOfRedvalue" disabled = "true"
+                                          oninput="change_ColorBoxValue()" onchange="change_ColorValue()"/><br>
+      <input type="range" min="0" max="1" step="0.01" value="0.5" id="greenvalue" disabled = "true"
+                                         oninput="display_RGBvalue()" onchange="display_RGBvalue()"/><br>
+      green： <input type="number" value="128" id="numberOfGreenvalue" disabled = "true"
+                                          oninput="change_ColorBoxValue()" onchange="change_ColorValue()"/><br>
+      <input type="range" min="0" max="1" step="0.01" value="0.5" id="bluevalue" disabled = "true"
+                                         oninput="display_RGBvalue()" onchange="display_RGBvalue()"/><br>
+      red： <input type="number" value="128" id="numberOfBluevalue" disabled = "true"
+                                          oninput="change_ColorBoxValue()" onchange="change_ColorValue()"/><br>
+      <button id="change-colorvalue-button" onclick="setCOLOR()" disabled = "true" style="font-family=Arial;"> Apply</button>
+        </div>
+    <script src="three.min.js"></script>
+    <script src="Lut.js"></script>
+    <script src="TrackballControls.js"></script>
+    <script src="KVS.min.js"></script>
+    <script src="KVS2THREE.min.js"></script>
+    <script src="KVSLobsterData.js"></script>
+    <script src="Bounds.js"></script>
+    <script src="w15_Isosurfaces_v2.js"></script>
+    <script src="w15_main_Task_v2.js"></script>
+    <script src="w15_culculate_material.js"></script>
+    
+    <script type="x-shader/x-vertex" id="Lambert.vert">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      uniform vec3 C_color;
+      
+      void main()
+      {
+      point_color = C_color;
+      point_position = modelViewMatrix * vec4( position, 1.0 );
+      normal_vector = normalMatrix * normal;
+      gl_Position = projectionMatrix * point_position;
+      }
+    </script>
+
+    <script type="x-shader/x-fragment" id="Lambert.frag">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      uniform vec3 C_color;
+      
+      vec3 LambertianReflection( vec3 C, vec3 L, vec3 N )
+      {
+      float ka = 0.4;
+      float kd = 0.6;
+      float dd = max( dot( N, L ), 0.0 );
+      float Ia = ka;
+      float Id = kd * dd;
+      return C * ( Ia + Id );
+      }
+      
+      void main()
+      {
+      vec3 C = point_color;
+      vec3 L = normalize( light_position - point_position.xyz );
+      vec3 N = normalize( normal_vector );
+      vec3 shaded_color = LambertianReflection( C, L, N );
+      gl_FragColor = vec4( shaded_color, 1.0 );
+      }
+    </script>
+    
+    <script type="x-shader/x-vertex" id="Phong.vert">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      uniform vec3 C_color;
+      
+      void main()
+      {
+        point_color = C_color;
+        point_position = modelViewMatrix * vec4( position, 1.0 );
+        normal_vector = normalMatrix * normal;
+        gl_Position = projectionMatrix * point_position;
+      }
+    </script>
+
+    <script type="x-shader/x-fragment" id="Phong.frag">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      uniform vec3 C_color;
+      
+      vec3 PhongReflection( vec3 C, vec3 L, vec3 N ,vec3 V) {
+        float ka = 0.3;
+        float kd = 0.5;
+        float ks = 0.8;
+        float n = 50.0;
+        vec3 R = reflect( -L, N );
+        float dd = max( dot( N, L ), 0.0 );
+        float ds = pow( max( dot( R, N ), 0.0 ), n );
+        if ( dd <= 0.0 ) { ds = 0.0; }
+        float Ia = ka;
+        float Id = kd * dd;
+        float Is = ks * ds;
+        return C * ( Ia + Id + Is );
+      }
+      
+      void main()
+      {
+        vec3 C = point_color;
+        vec3 L = normalize( light_position - point_position.xyz );
+        vec3 N = normalize( normal_vector );
+        vec3 V = normalize( cameraPosition - point_position.xyz);
+        vec3 shaded_color = PhongReflection( C, L, N ,V );
+        gl_FragColor = vec4( shaded_color, 1.0 );
+      }
+    </script>
+    
+    <script type="x-shader/x-vertex" id="Blinn-Phong.vert">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      uniform vec3 C_color;
+      
+      void main()
+      {
+      point_color = C_color;
+      point_position = modelViewMatrix * vec4( position, 1.0 );
+      normal_vector = normalMatrix * normal;
+      gl_Position = projectionMatrix * point_position;
+      }
+    </script>
+
+    <script type="x-shader/x-fragment" id="Blinn-Phong.frag">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      uniform vec3 C_color;
+      
+      vec3 Blinn_PhongReflection( vec3 C, vec3 L, vec3 N , vec3 V)
+      {
+      float ka = 0.3;
+      float kd = 0.5;
+      float ks = 0.8;
+      float n = 50.0;
+      vec3 H = normalize( L + V );
+      float dd = max( dot( N, L ), 0.0 );
+      float ds = pow( max( dot( H, N ), 0.0 ), n );
+      if ( dd<= 0.0 ) { ds = 0.0; }
+      float Ia = ka;
+      float Id = kd * dd;
+      float Is = ks * ds;
+      return C * ( Ia + Id + Is );
+      }
+      
+      void main()
+      {
+      vec3 C = point_color;
+      vec3 L = normalize( light_position - point_position.xyz );
+      vec3 N = normalize( normal_vector );
+      vec3 V = normalize( cameraPosition - point_position.xyz);
+      vec3 shaded_color = Blinn_PhongReflection(C, L, N ,V);
+      gl_FragColor = vec4( shaded_color, 1.0 );
+      }
+    </script>
+    
+    <script type="x-shader/x-vertex" id="Cook_Torrance.vert">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      uniform vec3 C_color;
+      
+      void main()
+      {
+      point_color = C_color;
+      point_position = modelViewMatrix * vec4( position, 1.0 );
+      normal_vector = normalMatrix * normal;
+      gl_Position = projectionMatrix * point_position;
+      }
+    </script>
+
+    <script type="x-shader/x-fragment" id="Cook_Torrance.frag">
+      varying vec3 point_color;
+      varying vec4 point_position;
+      varying vec3 normal_vector;
+      uniform vec3 light_position;
+      
+      
+      vec3 Cook_TorranceReflection( vec3 C, vec3 L, vec3 N , vec3 V)
+      {
+      
+      float ka = 0.6;
+      float kd = 1.0;
+      float ks = 0.9;
+      float n = 5.0;
+      float n_n = 1.0;
+      vec3 H = normalize( L + V );
+      float dd = max( dot( N, L ), 0.0 );
+      //float ds = pow( max( dot( H, V ), 0.0 ), n );
+      float NH = dot(N, H);
+      float VH = dot(V, H);
+      float NV = dot(N, V);
+      float NL = dot(N, L);
+      
+      float m = 100.0*NV*NL;//面の粗さ
+      
+      float alpha = acos(NH);
+      
+      // D:ベックマン分布関数
+      float D = (1.0/(4.0*m*m*NH*NH*NH*NH))*exp((NH*NH-1.0)/(m*m*NH*NH));
+      
+      // G:幾何減衰
+      float G = min(1.0, min((2.0*NH*NV)/VH, (2.0*NH*NL)/VH));
+      
+      // F:フレネル項
+      float c = VH;
+      float g = sqrt(n_n*n_n+c*c-1.0);
+      float F = ((g-c)*(g-c)/((g+c)*(g+c)))*(1.0+(c*(g+c)-1.0)*(c*(g+c)-1.0)/((c*(g-c)-1.0)*(c*(g-c)-1.0)));
+      
+      float ds = D*G*F/NV;
+      
+      float Ia = ka;
+      float Id = kd * dd;
+      float Is = ks * ds;
+      return C * ( Ia + Id + Is );
+      }
+      
+      void main()
+      {
+      vec3 C = point_color;
+      vec3 L = normalize( light_position - point_position.xyz );
+      vec3 N = normalize( normal_vector );
+      vec3 V = normalize( cameraPosition - point_position.xyz);
+      vec3 shaded_color = Cook_TorranceReflection(C, L, N ,V);
+      gl_FragColor = vec4( shaded_color, 1.0 );
+      }
+    </script>
+    
+    
+    <script>
+      var shader_vert = 'Lambert.vert';
+      var shader_frag = 'Lambert.frag';
+      var color_name = 'red';
+      var main = new main(shader_vert, shader_frag, color_name);
+      var isovalue_slider = document.getElementById("isovalue");
+
+
+      //イベントキャプチャリングで処理するならtrue、イベントバブリングで処理するならfalse
+      
+      //slider値をエビに反映
+      function setvalue(){
+        var iso_box = document.getElementById("numberOfIsovalue");
+        
+        if(iso_box.value >= 0 && iso_box.value <= 255){
+          main.set_surfaces(isovalue_slider.value);
+        }else{
+          alert("out of index!");
+        }
+      }
+      
+      //isovalueの値を表示するメソッド
+      //oninputとonchangeがあるけどどちらか動かない可能性があるので両方指定するらしい
+      function display_isovalue(value){
+        var isovalue = parseInt(value*255);
+        var iso_box = document.getElementById("numberOfIsovalue");
+        iso_box.value = isovalue;
+        main.set_plane_color(isovalue);
+      }
+      
+      function change_BoxValue(value){
+        if(value >= 0 && value <= 255){
+          slider_value = value / 255;
+          isovalue_slider.value = slider_value;
+          main.set_plane_color(value);
+        }
+      }
+      
+      function change_shader(){
+        if(document.getElementById("Lambert").checked){
+          shader_vert = 'Lambert.vert';
+          shader_frag = 'Lambert.frag';
+          main.set_shader(shader_vert, shader_frag);
+        }else if(document.getElementById("Phong").checked){
+          shader_vert = 'Phong.vert';
+          shader_frag = 'Phong.frag';
+          main.set_shader(shader_vert, shader_frag);
+        }else if(document.getElementById("Blinn").checked){
+          shader_vert = 'Blinn-Phong.vert';
+          shader_frag = 'Blinn-Phong.frag';
+          main.set_shader(shader_vert, shader_frag);
+        }else if(document.getElementById("Cook").checked){
+          shader_vert = 'Cook_Torrance.vert';
+          shader_frag = 'Cook_Torrance.frag';
+          main.set_shader(shader_vert, shader_frag);
+        }
+        //main.update_plane_color();
+      }
+      
+      function change_ColorMap(){
+        var isovalue = parseInt(isovalue_slider.value*255);
+        if(document.getElementById("red").checked){
+           set_disabled(true);
+           main.set_color("red");
+           color_name = 'red';
+           main.set_plane_color(isovalue);
+        }else if(document.getElementById("green").checked){
+           set_disabled(true);
+           main.set_color("green");
+           color_name = 'green';
+           main.set_plane_color(isovalue);
+        }else if(document.getElementById("blue").checked){
+           set_disabled(true);
+           main.set_color("blue");
+           color_name = 'blue';
+           main.set_plane_color(isovalue);
+        }else if(document.getElementById("rainbow").checked){
+           set_disabled(false);
+           var R_value = document.getElementById("redvalue").value;
+           var G_value = document.getElementById("greenvalue").value;
+           var B_value = document.getElementById("bluevalue").value;
+           main.set_plane_any_color(R_value, G_value, B_value);
+        }
+        //main.update_plane_color();
+      }
+      
+
+      function display_RGBvalue(){
+        var R_value = document.getElementById("redvalue").value;
+        var G_value = document.getElementById("greenvalue").value;
+        var B_value = document.getElementById("bluevalue").value;
+        
+        var redvalue = parseInt(R_value*255);
+        var red_box = document.getElementById("numberOfRedvalue");
+        var greenvalue = parseInt(G_value*255);
+        var green_box = document.getElementById("numberOfGreenvalue");
+        var bluevalue = parseInt(B_value*255);
+        var blue_box = document.getElementById("numberOfBluevalue");
+        red_box.value = redvalue;
+        green_box.value = greenvalue;
+        blue_box.value = bluevalue;
+        main.set_plane_any_color(R_value, G_value, B_value);
+      }
+      
+      
+      function change_ColorBoxValue(value){
+        var R = document.getElementById("numberOfRedvalue").value;
+        var G = document.getElementById("numberOfGreenvalue").value;
+        var B = document.getElementById("numberOfBluevalue").value;
+        if(R >= 0 && R <= 255 && G >= 0 && G <= 255 && B >= 0 && B <= 255){
+        
+          var red_slider_value =  R / 255;
+          var green_slider_value = G / 255;
+          var blue_slider_value = B / 255;
+          
+          document.getElementById("redvalue").value = red_slider_value;
+          document.getElementById("greenvalue").value = green_slider_value;
+          document.getElementById("bluevalue").value = blue_slider_value;
+          main.set_plane_any_color(red_slider_value, green_slider_value, blue_slider_value);
+        }
+      }
+      
+      function set_disabled(boolean){
+        document.getElementById("isovalue").disabled = !boolean;
+        document.getElementById("change-isovalue-button").disabled = !boolean;
+        document.getElementById("numberOfIsovalue").disabled = !boolean;
+        document.getElementById("numberOfRedvalue").disabled = boolean;
+        document.getElementById("numberOfGreenvalue").disabled = boolean;
+        document.getElementById("numberOfBluevalue").disabled = boolean;
+        document.getElementById("redvalue").disabled = boolean;
+        document.getElementById("greenvalue").disabled = boolean;
+        document.getElementById("bluevalue").disabled = boolean;
+        document.getElementById("change-colorvalue-button").disabled = boolean;
+      }
+      
+      function setCOLOR(){
+        var R_value = document.getElementById("redvalue").value;
+        var G_value = document.getElementById("greenvalue").value;
+        var B_value = document.getElementById("bluevalue").value;
+        main.set_any_color( R_value , G_value , B_value );
+      }
+      
+       
+      
+      //スリープ関数・秒で指定
+      /*function sleep(time){
+        const d1 = new Date();
+        while (true) {
+           const d2 = new Date();
+           if (d2 - d1 > time*1000) {
+             break;
+           }
+        }
+      }*/
+    </script>
+    </body>
+</html>
